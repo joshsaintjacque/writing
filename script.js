@@ -339,6 +339,60 @@ function render() {
   requestAnimationFrame(focusActiveLine);
 }
 
+function findWordBoundaries(text, position) {
+  if (!text) return { start: 0, end: 0 };
+
+  const pos = Math.max(0, Math.min(position, text.length));
+  const wordChar = /[\p{L}\p{N}'-]/u;
+
+  let start = pos;
+  while (start > 0 && wordChar.test(text[start - 1])) {
+    start -= 1;
+  }
+
+  let end = pos;
+  while (end < text.length && wordChar.test(text[end])) {
+    end += 1;
+  }
+
+  return { start, end };
+}
+
+function applyInlineMarker(marker) {
+  const codeState = lineIsCode(activeIndex);
+  if (codeState.fence || codeState.inCode) return;
+
+  const activeLine = editor.querySelector(".active-rich");
+  if (!activeLine) return;
+
+  let { start, end } = getSelectionOffsets(activeLine);
+
+  if (start === end) {
+    const bounds = findWordBoundaries(lines[activeIndex], start);
+    start = bounds.start;
+    end = bounds.end;
+  }
+
+  if (start >= end) return;
+
+  const line = lines[activeIndex];
+  const selected = line.slice(start, end);
+
+  if (selected.startsWith(marker) && selected.endsWith(marker)) {
+    replaceRangeOnActiveLine(start, end, selected.slice(marker.length, -marker.length));
+    return;
+  }
+
+  const before = line.slice(start - marker.length, start);
+  const after = line.slice(end, end + marker.length);
+  if (before === marker && after === marker) {
+    replaceRangeOnActiveLine(start - marker.length, end + marker.length, selected);
+    return;
+  }
+
+  replaceRangeOnActiveLine(start, end, `${marker}${selected}${marker}`);
+}
+
 function replaceRangeOnActiveLine(start, end, text) {
   const index = activeIndex;
   const before = lines[index].slice(0, start);
@@ -397,6 +451,18 @@ editor.addEventListener("keydown", (event) => {
   const index = activeIndex;
   lines[index] = activeLine.textContent.replace(/\n/g, "");
   const { start, end } = getSelectionOffsets(activeLine);
+
+  if ((event.metaKey || event.ctrlKey) && (event.key === "b" || event.key === "B")) {
+    event.preventDefault();
+    applyInlineMarker("**");
+    return;
+  }
+
+  if ((event.metaKey || event.ctrlKey) && (event.key === "i" || event.key === "I")) {
+    event.preventDefault();
+    applyInlineMarker("*");
+    return;
+  }
 
   if (event.key === "Enter") {
     event.preventDefault();
