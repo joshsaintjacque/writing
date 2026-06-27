@@ -142,16 +142,10 @@ button:hover {
   background: rgba(49, 106, 90, 0.045);
 }
 
-.block.is-active {
-  background: rgba(49, 106, 90, 0.07);
-}
-
-.block.is-selected {
-  background: rgba(49, 106, 90, 0.14);
-}
-
+.block.is-active,
+.block.is-selected,
 .block.is-selected:hover {
-  background: rgba(49, 106, 90, 0.18);
+  background: transparent;
 }
 
 .block.is-code-line {
