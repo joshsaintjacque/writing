@@ -32,6 +32,9 @@ let pendingCursor = null;
 let selectionAnchor = null;
 let selectionEnd = null;
 let dragStartIndex = null;
+let undoStack = [];
+let redoStack = [];
+let pendingUndoTimeout = null;
 
 function escapeHtml(value) {
   return value
@@ -289,6 +292,59 @@ function setActiveLine(index, cursor = null) {
   render();
 }
 
+function captureState() {
+  return {
+    lines: [...lines],
+    activeIndex,
+    pendingCursor,
+    selectionAnchor,
+    selectionEnd,
+  };
+}
+
+function restoreState(state) {
+  lines = [...state.lines];
+  activeIndex = state.activeIndex;
+  pendingCursor = state.pendingCursor;
+  selectionAnchor = state.selectionAnchor;
+  selectionEnd = state.selectionEnd;
+}
+
+function pushUndo() {
+  undoStack.push(captureState());
+  redoStack = [];
+}
+
+function undo() {
+  if (undoStack.length === 0) return;
+  redoStack.push(captureState());
+  restoreState(undoStack.pop());
+  render();
+}
+
+function redo() {
+  if (redoStack.length === 0) return;
+  undoStack.push(captureState());
+  restoreState(redoStack.pop());
+  render();
+}
+
+function flushPendingUndo() {
+  if (pendingUndoTimeout) {
+    clearTimeout(pendingUndoTimeout);
+    pendingUndoTimeout = null;
+    pushUndo();
+  }
+}
+
+function scheduleUndoSnapshot() {
+  clearTimeout(pendingUndoTimeout);
+  pendingUndoTimeout = setTimeout(() => {
+    pushUndo();
+    pendingUndoTimeout = null;
+  }, 700);
+}
+
 function clearSelection() {
   selectionAnchor = null;
   selectionEnd = null;
@@ -306,6 +362,8 @@ function getSelectedRange() {
 function deleteSelectedBlocks() {
   const range = getSelectedRange();
   if (!range) return;
+  flushPendingUndo();
+  pushUndo();
   lines.splice(range.start, range.end - range.start + 1);
   ensureLine();
   const newActive = Math.max(0, Math.min(range.start, lines.length - 1));
@@ -399,6 +457,9 @@ function applyInlineMarker(marker) {
 
   const activeLine = editor.querySelector(".active-rich");
   if (!activeLine) return;
+
+  flushPendingUndo();
+  pushUndo();
 
   let { start, end } = getSelectionOffsets(activeLine);
 
@@ -513,6 +574,7 @@ editor.addEventListener("input", (event) => {
   updateTitle();
   updateMetrics();
   persist();
+  scheduleUndoSnapshot();
 });
 
 editor.addEventListener("paste", (event) => {
@@ -521,11 +583,39 @@ editor.addEventListener("paste", (event) => {
   const text = event.clipboardData.getData("text");
   event.preventDefault();
   const selection = getSelectionOffsets(activeLine);
+  flushPendingUndo();
+  pushUndo();
   replaceRangeOnActiveLine(selection.start, selection.end, text);
 });
 
 editor.addEventListener("keydown", (event) => {
   const activeLine = event.target.closest(".active-rich");
+  const hasSelection = selectionAnchor !== null && selectionEnd !== null;
+  const isMeta = event.metaKey || event.ctrlKey;
+
+  if (isMeta && event.key === "z" && !event.shiftKey) {
+    if (undoStack.length > 0) {
+      event.preventDefault();
+      undo();
+      return;
+    }
+  }
+
+  if (isMeta && ((event.key === "z" && event.shiftKey) || event.key === "y")) {
+    if (redoStack.length > 0) {
+      event.preventDefault();
+      redo();
+      return;
+    }
+  }
+
+  if (activeLine && event.shiftKey && isMeta && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+    event.preventDefault();
+    if (selectionAnchor === null) selectionAnchor = activeIndex;
+    selectionEnd = event.key === "ArrowUp" ? 0 : lines.length - 1;
+    render();
+    return;
+  }
 
   if (activeLine && event.shiftKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
     event.preventDefault();
@@ -560,6 +650,8 @@ editor.addEventListener("keydown", (event) => {
 
   if (event.key === "Enter") {
     event.preventDefault();
+    flushPendingUndo();
+    pushUndo();
     const before = lines[index].slice(0, start);
     const after = lines[index].slice(end);
     lines[index] = before;
@@ -570,6 +662,8 @@ editor.addEventListener("keydown", (event) => {
 
   if (event.key === "Backspace" && start === 0 && end === 0 && index > 0) {
     event.preventDefault();
+    flushPendingUndo();
+    pushUndo();
     const previousLength = lines[index - 1].length;
     lines[index - 1] += lines[index];
     lines.splice(index, 1);
@@ -579,6 +673,8 @@ editor.addEventListener("keydown", (event) => {
 
   if (event.key === "Delete" && start === lines[index].length && end === start && index < lines.length - 1) {
     event.preventDefault();
+    flushPendingUndo();
+    pushUndo();
     lines[index] += lines[index + 1];
     lines.splice(index + 1, 1);
     setActiveLine(index, start);
@@ -599,6 +695,8 @@ editor.addEventListener("keydown", (event) => {
 
   if (event.key === "Tab") {
     event.preventDefault();
+    flushPendingUndo();
+    pushUndo();
     const insertion = "  ";
     lines[index] = `${lines[index].slice(0, start)}${insertion}${lines[index].slice(end)}`;
     setActiveLine(index, start + insertion.length);
@@ -606,6 +704,8 @@ editor.addEventListener("keydown", (event) => {
 });
 
 clearDraft.addEventListener("click", () => {
+  flushPendingUndo();
+  pushUndo();
   lines = [""];
   selectionAnchor = null;
   selectionEnd = null;
@@ -624,6 +724,24 @@ document.addEventListener(
 
 document.addEventListener("keydown", (event) => {
   const hasSelection = selectionAnchor !== null && selectionEnd !== null;
+  const isMeta = event.metaKey || event.ctrlKey;
+
+  if (isMeta && event.key === "z" && !event.shiftKey) {
+    if (undoStack.length > 0) {
+      event.preventDefault();
+      undo();
+      return;
+    }
+  }
+
+  if (isMeta && ((event.key === "z" && event.shiftKey) || event.key === "y")) {
+    if (redoStack.length > 0) {
+      event.preventDefault();
+      redo();
+      return;
+    }
+  }
+
   if (!hasSelection) return;
 
   if (event.key === "Escape") {
@@ -637,6 +755,20 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Backspace" || event.key === "Delete") {
     event.preventDefault();
     deleteSelectedBlocks();
+    return;
+  }
+
+  if (event.shiftKey && isMeta && event.key === "ArrowUp") {
+    event.preventDefault();
+    selectionEnd = 0;
+    render();
+    return;
+  }
+
+  if (event.shiftKey && isMeta && event.key === "ArrowDown") {
+    event.preventDefault();
+    selectionEnd = lines.length - 1;
+    render();
     return;
   }
 
@@ -670,7 +802,7 @@ document.addEventListener("keydown", (event) => {
     return;
   }
 
-  if ((event.metaKey || event.ctrlKey) && (event.key === "a" || event.key === "A")) {
+  if (isMeta && (event.key === "a" || event.key === "A")) {
     if (document.activeElement?.matches(".active-rich")) return;
     event.preventDefault();
     selectionAnchor = 0;
