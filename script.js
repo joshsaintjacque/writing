@@ -34,6 +34,8 @@ let dragStartIndex = null;
 let undoStack = [];
 let redoStack = [];
 let pendingUndoTimeout = null;
+let undoPreviousLineText = null;
+let undoPreviousSelection = null;
 
 function escapeHtml(value) {
   return value
@@ -286,6 +288,9 @@ function focusActiveLine() {
 }
 
 function setActiveLine(index, cursor = null) {
+  if (index !== activeIndex) {
+    flushPendingUndo();
+  }
   activeIndex = Math.max(0, Math.min(index, lines.length - 1));
   pendingCursor = cursor;
   render();
@@ -309,9 +314,20 @@ function restoreState(state) {
   selectionEnd = state.selectionEnd;
 }
 
-function pushUndo() {
-  undoStack.push(captureState());
+function statesEqual(a, b) {
+  if (a.activeIndex !== b.activeIndex) return false;
+  if (a.lines.length !== b.lines.length) return false;
+  return a.lines.every((line, i) => line === b.lines[i]);
+}
+
+function pushUndoState(state) {
+  if (undoStack.length > 0 && statesEqual(undoStack[undoStack.length - 1], state)) return;
+  undoStack.push(state);
   redoStack = [];
+}
+
+function pushUndo() {
+  pushUndoState(captureState());
 }
 
 function undo() {
@@ -341,7 +357,29 @@ function scheduleUndoSnapshot() {
   pendingUndoTimeout = setTimeout(() => {
     pushUndo();
     pendingUndoTimeout = null;
-  }, 700);
+  }, 400);
+}
+
+function findInsertedBoundary(previous, current) {
+  if (previous == null || previous.length >= current.length) return null;
+
+  let prefix = 0;
+  while (prefix < previous.length && previous[prefix] === current[prefix]) {
+    prefix += 1;
+  }
+
+  let suffix = 0;
+  while (
+    suffix < previous.length - prefix &&
+    previous[previous.length - 1 - suffix] === current[current.length - 1 - suffix]
+  ) {
+    suffix += 1;
+  }
+
+  const inserted = current.slice(prefix, current.length - suffix);
+  if (!inserted) return null;
+
+  return /[\s.,;:!?\-()[\]{}'"\\/]$/.test(inserted);
 }
 
 function clearSelection() {
@@ -565,14 +603,42 @@ editor.addEventListener("focus", () => {
   if (!editor.querySelector(".active-rich")) setActiveLine(lines.length - 1);
 });
 
+editor.addEventListener("beforeinput", (event) => {
+  if (!event.target.matches(".active-rich")) return;
+  undoPreviousLineText = lines[activeIndex];
+  undoPreviousSelection = getSelectionOffsets(event.target).start;
+});
+
 editor.addEventListener("input", (event) => {
   if (!event.target.matches(".active-rich")) return;
   const activeLine = event.target;
+  const previousText = undoPreviousLineText;
+  const previousSelection = undoPreviousSelection;
+  undoPreviousLineText = null;
+  undoPreviousSelection = null;
   lines[activeIndex] = activeLine.textContent.replace(/\n/g, "");
   setTextareaHeight(activeLine);
   updateTitle();
   updateMetrics();
   persist();
+
+  const currentText = lines[activeIndex];
+  const wasFirstInSession = pendingUndoTimeout === null;
+
+  if (wasFirstInSession && previousText !== null) {
+    const snapshot = captureState();
+    snapshot.lines = [...lines];
+    snapshot.lines[activeIndex] = previousText;
+    snapshot.pendingCursor = previousSelection ?? snapshot.pendingCursor;
+    pushUndoState(snapshot);
+  } else if (previousText !== null && currentText.length > previousText.length) {
+    if (findInsertedBoundary(previousText, currentText)) {
+      const snapshot = captureState();
+      snapshot.pendingCursor = getSelectionOffsets(activeLine).start;
+      pushUndoState(snapshot);
+    }
+  }
+
   scheduleUndoSnapshot();
 });
 
