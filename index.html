@@ -9,25 +9,7 @@
   <body>
     <main class="shell">
       <aside class="rail" aria-label="Document controls">
-        <div>
-          <p class="eyebrow">Writing Room</p>
-          <h1 id="draftTitle">Untitled draft</h1>
-        </div>
-
-        <div class="metrics" aria-label="Writing metrics">
-          <div>
-            <span id="wordCount">0</span>
-            <small>words</small>
-          </div>
-          <div>
-            <span id="readTime">1</span>
-            <small>min read</small>
-          </div>
-        </div>
-
-        <div class="controls">
-          <button id="clearDraft" type="button">New draft</button>
-        </div>
+        <h1 id="draftTitle">Untitled draft</h1>
       </aside>
 
       <section class="workspace" aria-label="Markdown writing workspace">
@@ -37,12 +19,22 @@
           class="page block-editor"
           role="textbox"
           aria-multiline="true"
-          aria-describedby="editorHint"
           tabindex="0"
         ></article>
-        <p id="editorHint" class="hint">
-          Markdown appears only on the active line. Click any line to edit its source.
-        </p>
+
+        <div class="status-bar" aria-label="Document status and actions">
+          <div class="metrics" aria-label="Writing metrics">
+            <div>
+              <span id="wordCount">0</span>
+              <small>words</small>
+            </div>
+            <div>
+              <span id="readTime">1</span>
+              <small>min read</small>
+            </div>
+          </div>
+          <button id="clearDraft" type="button">New draft</button>
+        </div>
       </section>
     </main>
 

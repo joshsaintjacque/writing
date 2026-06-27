@@ -68,22 +68,9 @@ button:hover {
 .rail {
   position: sticky;
   top: clamp(20px, 4vw, 52px);
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 28px;
   height: calc(100svh - clamp(40px, 8vw, 104px));
   padding-top: 10px;
   color: var(--muted);
-}
-
-.eyebrow {
-  margin: 0 0 12px;
-  color: var(--accent);
-  font-size: 0.74rem;
-  font-weight: 720;
-  letter-spacing: 0;
-  text-transform: uppercase;
 }
 
 #draftTitle {
@@ -96,6 +83,16 @@ button:hover {
   line-height: 0.94;
 }
 
+.status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(23, 20, 17, 0.1);
+}
+
 .metrics {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -103,27 +100,20 @@ button:hover {
 }
 
 .metrics div {
-  border-top: 1px solid rgba(23, 20, 17, 0.13);
-  padding-top: 12px;
+  padding-top: 0;
 }
 
 .metrics span {
   display: block;
   color: var(--ink);
   font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(1.7rem, 3vw, 2.6rem);
+  font-size: clamp(1.4rem, 2.5vw, 2rem);
   line-height: 1;
 }
 
-.metrics small,
-.hint {
+.metrics small {
   color: var(--muted);
-  font-size: 0.84rem;
-}
-
-.controls {
-  display: grid;
-  gap: 10px;
+  font-size: 0.78rem;
 }
 
 .workspace {
@@ -134,7 +124,7 @@ button:hover {
 }
 
 .page {
-  min-height: calc(100svh - clamp(40px, 8vw, 104px) - 34px);
+  min-height: calc(100svh - clamp(40px, 8vw, 104px) - 80px);
   padding: clamp(28px, 5vw, 68px);
   border: 1px solid rgba(62, 52, 39, 0.1);
   background: rgba(255, 252, 245, 0.86);
@@ -297,16 +287,6 @@ button:hover {
   padding-left: 1.15em;
 }
 
-.hint {
-  min-height: 20px;
-  margin: 12px 0 0;
-  transition: opacity 180ms ease;
-}
-
-.workspace:focus-within .hint {
-  opacity: 0.28;
-}
-
 .block h1,
 .block h2,
 .block h3 {
@@ -460,22 +440,12 @@ button:hover {
     position: static;
     height: auto;
     min-height: 0;
-    flex-direction: row;
-    align-items: end;
     padding-top: 0;
   }
 
   #draftTitle {
     max-width: none;
     font-size: clamp(2rem, 10vw, 3.8rem);
-  }
-
-  .metrics {
-    width: min(240px, 38vw);
-  }
-
-  .controls {
-    width: min(220px, 34vw);
   }
 
   .page {
@@ -488,18 +458,13 @@ button:hover {
     padding: 18px;
   }
 
-  .rail {
-    align-items: stretch;
-    flex-direction: column;
-    gap: 18px;
-  }
-
-  .metrics,
-  .controls {
-    width: 100%;
-  }
-
   .page {
     padding: 24px;
+  }
+
+  .status-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
   }
 }
