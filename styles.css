@@ -174,6 +174,14 @@ button:hover {
   background: rgba(49, 106, 90, 0.07);
 }
 
+.block.is-selected {
+  background: rgba(49, 106, 90, 0.14);
+}
+
+.block.is-selected:hover {
+  background: rgba(49, 106, 90, 0.18);
+}
+
 .block.is-code-line {
   margin-top: 0;
   border-radius: 0;

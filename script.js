@@ -29,6 +29,9 @@ const clearDraft = document.querySelector("#clearDraft");
 let lines = (localStorage.getItem(STORAGE_KEY) || sampleDraft).replace(/\r\n/g, "\n").split("\n");
 let activeIndex = 0;
 let pendingCursor = null;
+let selectionAnchor = null;
+let selectionEnd = null;
+let dragStartIndex = null;
 
 function escapeHtml(value) {
   return value
@@ -286,9 +289,37 @@ function setActiveLine(index, cursor = null) {
   render();
 }
 
+function clearSelection() {
+  selectionAnchor = null;
+  selectionEnd = null;
+  render();
+}
+
+function getSelectedRange() {
+  if (selectionAnchor === null || selectionEnd === null) return null;
+  return {
+    start: Math.min(selectionAnchor, selectionEnd),
+    end: Math.max(selectionAnchor, selectionEnd),
+  };
+}
+
+function deleteSelectedBlocks() {
+  const range = getSelectedRange();
+  if (!range) return;
+  lines.splice(range.start, range.end - range.start + 1);
+  ensureLine();
+  const newActive = Math.max(0, Math.min(range.start, lines.length - 1));
+  selectionAnchor = null;
+  selectionEnd = null;
+  setActiveLine(newActive, lines[newActive].length);
+}
+
 function render() {
   ensureLine();
   editor.innerHTML = "";
+
+  const range = getSelectedRange();
+  const hasSelection = range !== null;
 
   lines.forEach((line, index) => {
     const block = document.createElement("div");
@@ -300,20 +331,22 @@ function render() {
     const startsCodeBlock =
       isCodeLine && (!previousCodeState.inCode || previousCodeState.fence);
     const endsCodeBlock = isCodeLine && (!nextCodeState.inCode || nextCodeState.fence);
+    const isSelected = hasSelection && index >= range.start && index <= range.end;
     const classes = [
       "block",
-      index === activeIndex ? "is-active" : "",
+      index === activeIndex && !hasSelection ? "is-active" : "",
       line.trim() ? "" : "is-empty",
       codeState.fence && index !== activeIndex ? "is-fence-hidden" : "",
       isCodeLine ? "is-code-line" : "",
       startsCodeBlock ? "code-start" : "",
       endsCodeBlock ? "code-end" : "",
+      isSelected ? "is-selected" : "",
     ].filter(Boolean);
 
     block.className = classes.join(" ");
     block.dataset.index = String(index);
 
-    if (index === activeIndex) {
+    if (index === activeIndex && !hasSelection) {
       const activeLine = document.createElement("div");
       activeLine.className = activeLineClass(line, index);
       activeLine.contentEditable = "true";
@@ -335,8 +368,10 @@ function render() {
   updateTitle();
   updateMetrics();
   persist();
-  focusActiveLine();
-  requestAnimationFrame(focusActiveLine);
+  if (!hasSelection) {
+    focusActiveLine();
+    requestAnimationFrame(focusActiveLine);
+  }
 }
 
 function findWordBoundaries(text, position) {
@@ -415,13 +450,58 @@ function replaceRangeOnActiveLine(start, end, text) {
   setActiveLine(index + replacement.length - 1, pasted[pasted.length - 1].length);
 }
 
-editor.addEventListener("click", (event) => {
+function handleSelectionMouseMove(event) {
+  if (dragStartIndex === null) return;
   const block = event.target.closest(".block");
-  if (!block || event.target.closest(".active-rich")) return;
-  setActiveLine(Number(block.dataset.index));
+  if (!block) return;
+  const index = Number(block.dataset.index);
+  if (index !== selectionEnd) {
+    selectionEnd = index;
+    render();
+  }
+}
+
+function handleSelectionMouseUp(event) {
+  if (dragStartIndex === null) return;
+
+  if (selectionAnchor === selectionEnd) {
+    const block = event.target.closest(".block");
+    clearSelection();
+    if (block) {
+      setActiveLine(Number(block.dataset.index));
+    }
+  }
+
+  dragStartIndex = null;
+  document.removeEventListener("mousemove", handleSelectionMouseMove);
+  document.removeEventListener("mouseup", handleSelectionMouseUp);
+}
+
+editor.addEventListener("mousedown", (event) => {
+  const block = event.target.closest(".block");
+  if (!block) return;
+  const index = Number(block.dataset.index);
+
+  if (event.shiftKey) {
+    event.preventDefault();
+    if (selectionAnchor === null) selectionAnchor = activeIndex;
+    selectionEnd = index;
+    render();
+    return;
+  }
+
+  if (event.target.closest(".active-rich")) return;
+
+  dragStartIndex = index;
+  selectionAnchor = index;
+  selectionEnd = index;
+  document.addEventListener("mousemove", handleSelectionMouseMove);
+  document.addEventListener("mouseup", handleSelectionMouseUp);
+  render();
 });
 
 editor.addEventListener("focus", () => {
+  if (selectionAnchor !== null) return;
   if (!editor.querySelector(".active-rich")) setActiveLine(lines.length - 1);
 });
 
@@ -446,6 +526,20 @@ editor.addEventListener("paste", (event) => {
 
 editor.addEventListener("keydown", (event) => {
   const activeLine = event.target.closest(".active-rich");
+
+  if (activeLine && event.shiftKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+    event.preventDefault();
+    if (selectionAnchor === null) selectionAnchor = activeIndex;
+    selectionEnd = activeIndex;
+    if (event.key === "ArrowUp") {
+      selectionEnd = Math.max(0, selectionEnd - 1);
+    } else {
+      selectionEnd = Math.min(lines.length - 1, selectionEnd + 1);
+    }
+    render();
+    return;
+  }
+
   if (!activeLine) return;
 
   const index = activeIndex;
@@ -513,7 +607,76 @@ editor.addEventListener("keydown", (event) => {
 
 clearDraft.addEventListener("click", () => {
   lines = [""];
+  selectionAnchor = null;
+  selectionEnd = null;
   setActiveLine(0, 0);
+});
+
+document.addEventListener(
+  "mousedown",
+  (event) => {
+    if (!editor.contains(event.target)) {
+      clearSelection();
+    }
+  },
+  true,
+);
+
+document.addEventListener("keydown", (event) => {
+  const hasSelection = selectionAnchor !== null && selectionEnd !== null;
+  if (!hasSelection) return;
+
+  if (event.key === "Escape") {
+    event.preventDefault();
+    const target = selectionAnchor;
+    clearSelection();
+    setActiveLine(target);
+    return;
+  }
+
+  if (event.key === "Backspace" || event.key === "Delete") {
+    event.preventDefault();
+    deleteSelectedBlocks();
+    return;
+  }
+
+  if (event.shiftKey && event.key === "ArrowUp") {
+    event.preventDefault();
+    selectionEnd = Math.max(0, selectionEnd - 1);
+    render();
+    return;
+  }
+
+  if (event.shiftKey && event.key === "ArrowDown") {
+    event.preventDefault();
+    selectionEnd = Math.min(lines.length - 1, selectionEnd + 1);
+    render();
+    return;
+  }
+
+  if (event.key === "ArrowUp") {
+    event.preventDefault();
+    const target = Math.min(selectionAnchor, selectionEnd);
+    clearSelection();
+    setActiveLine(target);
+    return;
+  }
+
+  if (event.key === "ArrowDown") {
+    event.preventDefault();
+    const target = Math.max(selectionAnchor, selectionEnd);
+    clearSelection();
+    setActiveLine(target);
+    return;
+  }
+
+  if ((event.metaKey || event.ctrlKey) && (event.key === "a" || event.key === "A")) {
+    if (document.activeElement?.matches(".active-rich")) return;
+    event.preventDefault();
+    selectionAnchor = 0;
+    selectionEnd = lines.length - 1;
+    render();
+  }
 });
 
 render();
