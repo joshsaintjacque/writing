@@ -409,6 +409,45 @@ function deleteSelectedBlocks() {
   setActiveLine(newActive, lines[newActive].length);
 }
 
+function moveBlocks(direction, cursor = null) {
+  const range = getSelectedRange();
+  const hasSelection = range !== null;
+
+  if (hasSelection) {
+    if (direction === "up" && range.start === 0) return false;
+    if (direction === "down" && range.end === lines.length - 1) return false;
+
+    flushPendingUndo();
+    pushUndo();
+
+    const count = range.end - range.start + 1;
+    const extracted = lines.splice(range.start, count);
+    const insertAt = direction === "up" ? range.start - 1 : range.start + 1;
+    lines.splice(insertAt, 0, ...extracted);
+
+    const delta = direction === "up" ? -1 : 1;
+    selectionAnchor += delta;
+    selectionEnd += delta;
+
+    render();
+    return true;
+  }
+
+  if (direction === "up" && activeIndex === 0) return false;
+  if (direction === "down" && activeIndex === lines.length - 1) return false;
+
+  flushPendingUndo();
+  pushUndo();
+
+  const other = direction === "up" ? activeIndex - 1 : activeIndex + 1;
+  [lines[activeIndex], lines[other]] = [lines[other], lines[activeIndex]];
+  activeIndex = other;
+  pendingCursor = cursor;
+
+  render();
+  return true;
+}
+
 function render() {
   ensureLine();
   editor.innerHTML = "";
@@ -695,6 +734,13 @@ editor.addEventListener("keydown", (event) => {
     return;
   }
 
+  if (activeLine && event.altKey && !event.shiftKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+    event.preventDefault();
+    const cursor = getSelectionOffsets(activeLine).start;
+    moveBlocks(event.key === "ArrowUp" ? "up" : "down", cursor);
+    return;
+  }
+
   if (!activeLine) return;
 
   const index = activeIndex;
@@ -848,6 +894,12 @@ document.addEventListener("keydown", (event) => {
     event.preventDefault();
     selectionEnd = Math.min(lines.length - 1, selectionEnd + 1);
     render();
+    return;
+  }
+
+  if (event.altKey && !event.shiftKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+    event.preventDefault();
+    moveBlocks(event.key === "ArrowUp" ? "up" : "down");
     return;
   }
 
