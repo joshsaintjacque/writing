@@ -57,8 +57,8 @@ button:hover {
 }
 
 .shell {
-  display: flex;
-  justify-content: center;
+  display: grid;
+  place-items: start center;
   min-height: 100svh;
   padding: clamp(20px, 4vw, 52px);
 }
@@ -100,12 +100,12 @@ button:hover {
   position: relative;
   display: flex;
   flex-direction: column;
-  width: 100%;
-  max-width: 760px;
+  width: min(100%, 760px);
   min-width: 0;
 }
 
 .page {
+  width: 100%;
   min-height: calc(100svh - clamp(40px, 8vw, 104px) - 80px);
   padding: clamp(28px, 5vw, 68px);
   border: 1px solid rgba(62, 52, 39, 0.1);
