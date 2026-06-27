@@ -57,30 +57,10 @@ button:hover {
 }
 
 .shell {
-  display: grid;
-  grid-template-columns: minmax(190px, 240px) minmax(360px, 760px);
+  display: flex;
   justify-content: center;
-  gap: clamp(28px, 5vw, 76px);
   min-height: 100svh;
   padding: clamp(20px, 4vw, 52px);
-}
-
-.rail {
-  position: sticky;
-  top: clamp(20px, 4vw, 52px);
-  height: calc(100svh - clamp(40px, 8vw, 104px));
-  padding-top: 10px;
-  color: var(--muted);
-}
-
-#draftTitle {
-  max-width: 11ch;
-  margin: 0;
-  color: var(--ink);
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(2.1rem, 4vw, 4rem);
-  font-weight: 500;
-  line-height: 0.94;
 }
 
 .status-bar {
@@ -431,23 +411,6 @@ button:hover {
 }
 
 @media (max-width: 980px) {
-  .shell {
-    grid-template-columns: 1fr;
-    gap: 18px;
-  }
-
-  .rail {
-    position: static;
-    height: auto;
-    min-height: 0;
-    padding-top: 0;
-  }
-
-  #draftTitle {
-    max-width: none;
-    font-size: clamp(2rem, 10vw, 3.8rem);
-  }
-
   .page {
     min-height: 58svh;
   }

@@ -21,7 +21,6 @@ const firstLine = "Begin with the sentence you can actually write.";
 `;
 
 const editor = document.querySelector("#editor");
-const draftTitle = document.querySelector("#draftTitle");
 const wordCount = document.querySelector("#wordCount");
 const readTime = document.querySelector("#readTime");
 const clearDraft = document.querySelector("#clearDraft");
@@ -203,7 +202,7 @@ function updateTitle() {
   const firstHeading = lines
     .map((line) => line.match(/^#\s+(.+)$/)?.[1]?.trim())
     .find(Boolean);
-  draftTitle.textContent = firstHeading || "Untitled draft";
+  document.title = firstHeading ? `${firstHeading} — Writing Room` : "Writing Room";
 }
 
 function setTextareaHeight(textarea) {
